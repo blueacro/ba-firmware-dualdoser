@@ -44,7 +44,7 @@ NOTES:
 #include "usb_descriptors.h"
 
 /*- Definitions -------------------------------------------------------------*/
-#define USE_DBL_TAP /* comment out to use GPIO input for bootloader entry */
+// #define USE_DBL_TAP /* comment out to use GPIO input for bootloader entry */
 #define REBOOT_AFTER_DOWNLOAD /* comment out to prevent boot into app after it has been downloaded */
 #define USB_CMD(dir, rcpt, type) ((USB_##dir##_TRANSFER << 7) | (USB_##type##_REQUEST << 5) | (USB_##rcpt##_RECIPIENT << 0))
 #define SIMPLE_USB_CMD(rcpt, type) ((USB_##type##_REQUEST << 5) | (USB_##rcpt##_RECIPIENT << 0))
@@ -239,9 +239,9 @@ static void __attribute__((noinline)) USB_Service(void)
 void bootloader(void)
 {
 #ifndef USE_DBL_TAP
-  /* configure PA15 (bootloader entry pin used by SAM-BA) as input pull-up */
-  PORT->Group[0].PINCFG[15].reg = PORT_PINCFG_PULLEN | PORT_PINCFG_INEN;
-  PORT->Group[0].OUTSET.reg = (1UL << 15);
+  /* configure PA16 (bootloader entry pin used by SAM-BA) as input pull-up */
+  PORT->Group[0].PINCFG[16].reg = PORT_PINCFG_PULLEN | PORT_PINCFG_INEN;
+  PORT->Group[0].OUTSET.reg = (1UL << 16);
 #endif
 
   PAC1->WPCLR.reg = 2; /* clear DSU */
@@ -258,7 +258,7 @@ void bootloader(void)
     goto run_bootloader; /* CRC failed, so run bootloader */
 
 #ifndef USE_DBL_TAP
-  if (!(PORT->Group[0].IN.reg & (1UL << 15)))
+  if (!(PORT->Group[0].IN.reg & (1UL << 16)))
     goto run_bootloader; /* pin grounded, so run bootloader */
 
   return; /* we've checked everything and there is no reason to run the bootloader */

@@ -1,5 +1,7 @@
-USB DFU Bootloader for SAMD11 / SAMD21
+Bootloader and firmware for BlueAcro ReefVolt DualDoser
 ======================================
+
+# Based on SAMD11-bootloader
 
 Bootloaders may be a dime a dozen, but existing USB bootloaders for the Atmel/Microchip SAMD11/SAMD21 all seem to be 4kBytes or 8kBytes in size.  To spend 25% or 50% of the SAMD11's flash on the bootloader seems quite excessive.  The SAMD21 may have more flash to spare than the SAMD11, but why be so wasteful with it?
 
