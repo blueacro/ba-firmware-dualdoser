@@ -215,7 +215,7 @@ static void __attribute__((noinline)) USB_Service(void)
           else
           {
             /* the download has now finished, so now reboot */
-            WDT->CONFIG.reg = WDT_CONFIG_PER_8 | WDT_CONFIG_WINDOW_8;
+            WDT->CONFIG.reg = WDT_CONFIG_PER_16K | WDT_CONFIG_WINDOW_16K;
             WDT->CTRL.reg = WDT_CTRL_ENABLE;
           }
 #endif
@@ -291,8 +291,6 @@ run_bootloader:
   /* Turn on an LED  on PA17 on entry */
   PORT->Group[0].DIRSET.reg = (1UL << 17);
   PORT->Group[0].OUTSET.reg = (1UL << 17);
-  PORT->Group[0].OUTCLR.reg = (1UL << 22) | (1UL << 23);
-
 
   SYSCTRL->OSC8M.bit.PRESC = 0;
 
