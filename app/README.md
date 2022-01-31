@@ -9,10 +9,6 @@ The linker memory maps have been adjusted to exclude the first 0x400 bytes so as
 
 ## Build Requirements
 
-One approach is to use [Rowley Crossworks for ARM](http://www.rowley.co.uk/arm/) to compile this code.  It is not free software, but has been my favorite go-to ARM development tool for a decade and counting.
-
-*OR*
-
 Use the Makefile in the make subdirectory.  With this approach, the code can be built using only open-source software.  In Ubuntu-derived distributions, this is likely achieved with as little as:
 
 ```

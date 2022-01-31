@@ -1,0 +1,43 @@
+{
+    "env": {
+        "myDefaultIncludePath": [
+            "${workspaceFolder}",
+            "${workspaceFolder}/include"
+        ],
+        "myCompilerPath": "arm-none-eabi-gcc"
+    },
+    "configurations": [
+        {
+            "name": "Cross Compile",
+            "intelliSenseMode": "linux-gcc-arm",
+            "includePath": [
+                "${myDefaultIncludePath}"
+            ],
+            "defines": [
+                "__SAMD11D14AM__",
+                "DONT_USE_CMSIS_INIT"
+            ],
+            "compilerPath": "/usr/bin/arm-none-eabi-gcc",
+            "cStandard": "gnu99",
+            "cppStandard": "c++17",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "compilerArgs": [
+                "-W",
+                "-Wall",
+                "--std=gnu99",
+                "-Os",
+                "-g3",
+                "-Wno-address-of-packed-member",
+                "-mcpu=cortex-m0plus ",
+                "-mthumb"
+            ]
+        }
+    ],
+    "version": 4
+}
