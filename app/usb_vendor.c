@@ -12,8 +12,6 @@ static void usb_vendor_ep_comm_callback(int size);
 static void usb_vendor_ep_send_callback(int size);
 static void usb_vendor_ep_recv_callback(int size);
 
-
-
 static int usb_cdc_serial_state;
 static bool usb_cdc_comm_busy;
 
@@ -22,14 +20,8 @@ static bool usb_cdc_comm_busy;
 //-----------------------------------------------------------------------------
 void usb_vendor_init(void)
 {
-  usb_set_callback(USB_CDC_EP_COMM, usb_vendor_ep_comm_callback);
   usb_set_callback(USB_CDC_EP_SEND, usb_vendor_ep_send_callback);
   usb_set_callback(USB_CDC_EP_RECV, usb_vendor_ep_recv_callback);
-}
-
-static void usb_vendor_ep_comm_callback(int size)
-{
-  (void)size;
 }
 
 static void usb_vendor_ep_send_callback(int size)
@@ -43,6 +35,15 @@ static void usb_vendor_ep_recv_callback(int size)
   (void)size;
 }
 
+void usb_vendor_send(uint8_t *data, int size)
+{
+  return usb_send(USB_CDC_EP_SEND, data, size);
+}
+
+void usb_vendor_recv(uint8_t *data, int size)
+{
+  return usb_recv(USB_CDC_EP_RECV, data, size);
+}
 //-----------------------------------------------------------------------------
 bool usb_class_handle_request(usb_request_t *request)
 {

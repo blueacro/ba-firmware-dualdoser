@@ -15,7 +15,7 @@
             "serialNumber": "", // add J-Link serial number if having multiple attached the same time.
             "runToEntryPoint": "main",
             "svdFile": "${workspaceRoot}/ATSAMD11D14AU.svd",
-
+            "preLaunchTask": "Build Project"
         }
     ]
 }

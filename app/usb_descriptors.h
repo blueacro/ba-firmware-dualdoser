@@ -46,17 +46,14 @@ enum
 
 enum
 {
-  USB_CDC_EP_SEND = 1,
-  USB_CDC_EP_RECV = 2,
-  USB_CDC_EP_COMM = 3,
+  USB_CDC_EP_SEND = 0,
+  USB_CDC_EP_RECV = 1,
 };
 
 /*- Types -------------------------------------------------------------------*/
 typedef struct PACK
 {
   usb_configuration_descriptor_t                   configuration;
-  usb_interface_descriptor_t                       interface_comm;
-  usb_endpoint_descriptor_t                        ep_comm;
   usb_interface_descriptor_t                       interface_data;
   usb_endpoint_descriptor_t                        ep_in;
   usb_endpoint_descriptor_t                        ep_out;

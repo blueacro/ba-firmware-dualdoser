@@ -38,7 +38,7 @@ const alignas(4) usb_device_descriptor_t usb_device_descriptor =
   .bLength            = sizeof(usb_device_descriptor_t),
   .bDescriptorType    = USB_DEVICE_DESCRIPTOR,
   .bcdUSB             = 0x0110,
-  .bDeviceClass       = USB_CDC_DEVICE_CLASS,
+  .bDeviceClass       = 0xFF,
   .bDeviceSubClass    = 0,
   .bDeviceProtocol    = 0,
   .bMaxPacketSize0    = 64,
@@ -58,41 +58,19 @@ const alignas(4) usb_configuration_hierarchy_t usb_configuration_hierarchy =
     .bLength             = sizeof(usb_configuration_descriptor_t),
     .bDescriptorType     = USB_CONFIGURATION_DESCRIPTOR,
     .wTotalLength        = sizeof(usb_configuration_hierarchy_t),
-    .bNumInterfaces      = 2,
+    .bNumInterfaces      = 1,
     .bConfigurationValue = 1,
     .iConfiguration      = 0,
     .bmAttributes        = 0x80,
     .bMaxPower           = 50, // 100 mA
   },
 
-  .interface_comm =
-  {
-    .bLength             = sizeof(usb_interface_descriptor_t),
-    .bDescriptorType     = USB_INTERFACE_DESCRIPTOR,
-    .bInterfaceNumber    = 0,
-    .bAlternateSetting   = 0,
-    .bNumEndpoints       = 1,
-    .bInterfaceClass     = 0xFF,
-    .bInterfaceSubClass  = 0x00,
-    .bInterfaceProtocol  = 0,
-    .iInterface          = 0,
-  },
-
-  .ep_comm =
-  {
-    .bLength             = sizeof(usb_endpoint_descriptor_t),
-    .bDescriptorType     = USB_ENDPOINT_DESCRIPTOR,
-    .bEndpointAddress    = USB_IN_ENDPOINT | USB_CDC_EP_COMM,
-    .bmAttributes        = USB_INTERRUPT_ENDPOINT,
-    .wMaxPacketSize      = 64,
-    .bInterval           = 1,
-  },
 
   .interface_data =
   {
     .bLength             = sizeof(usb_interface_descriptor_t),
     .bDescriptorType     = USB_INTERFACE_DESCRIPTOR,
-    .bInterfaceNumber    = 1,
+    .bInterfaceNumber    = 0,
     .bAlternateSetting   = 0,
     .bNumEndpoints       = 2,
     .bInterfaceClass     = 0xFF,
