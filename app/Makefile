@@ -22,13 +22,18 @@ LDFLAGS += -Wl,--script=linker/samd11d14.ld
 
 INCLUDES += \
   -Iinclude \
-  -I.
+  -I. \
+  -Itinyusb/src \
+  -Itinyusb/hw/mcu/microchip/samd11/include
 
 SRCS += \
   main.c \
-  usb.c \
-  usb_std.c \
-  usb_vendor.c \
+  tinyusb/src/tusb.c \
+  tinyusb/src/device/usbd_control.c \
+  tinyusb/src/device/usbd.c \
+  tinyusb/src/portable/microchip/samd/dcd_samd.c \
+  tinyusb/src/class/vendor/vendor_device.c \
+  tinyusb/src/common/tusb_fifo.c \
   usb_descriptors.c \
   startup_samd11.c
 
@@ -36,11 +41,12 @@ DEFINES += \
   -D__SAMD11C14A__ \
   -DDONT_USE_CMSIS_INIT \
   -DSTARTUP_FROM_RESET \
-  -DF_CPU=48000000 
+  -DF_CPU=48000000 \
+  -DCFG_TUSB_MCU=OPT_MCU_SAMD11
 
 CFLAGS += $(INCLUDES) $(DEFINES)
 
-OBJS = $(addprefix $(BUILD)/, $(notdir %/$(subst .c,.o, $(SRCS))))
+OBJS = $(addprefix $(BUILD)/, $(subst .c,.o, $(SRCS)))
 
 all: directory $(BUILD)/$(BIN).elf $(BUILD)/$(BIN).hex $(BUILD)/$(BIN).bin size
 
@@ -58,10 +64,14 @@ $(BUILD)/$(BIN).bin: $(BUILD)/$(BIN).elf
 
 %.o:
 	@echo CC $@
-	@$(CC) $(CFLAGS) $(subst .o,.c,$(notdir $@)) -c -o $@
+	$(CC) $(CFLAGS) $(subst build/,,$(subst .o,.c,$@)) -c -o $@
 
 directory:
 	@mkdir -p $(BUILD)
+	@mkdir -p $(BUILD)/tinyusb/src/device/
+	@mkdir -p $(BUILD)/tinyusb/src/portable/microchip/samd/
+	@mkdir -p $(BUILD)/tinyusb/src/class/vendor
+	@mkdir -p $(BUILD)/tinyusb/src/common
 
 size: $(BUILD)/$(BIN).elf
 	@echo size:
