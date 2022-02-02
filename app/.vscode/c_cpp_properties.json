@@ -2,7 +2,8 @@
     "env": {
         "myDefaultIncludePath": [
             "${workspaceFolder}",
-            "${workspaceFolder}/include"
+            "${workspaceFolder}/include",
+            "${workspaceFolder}/tinyusb/src"
         ],
         "myCompilerPath": "arm-none-eabi-gcc"
     },
@@ -16,7 +17,8 @@
             "defines": [
                 "__SAMD11D14AM__",
                 "DONT_USE_CMSIS_INIT",
-                "F_CPU=48000000"
+                "F_CPU=48000000",
+                "CFG_TUSB_MCU=OPT_MCU_SAMD11"
             ],
             "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "gnu99",

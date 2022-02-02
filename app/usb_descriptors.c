@@ -1,117 +1,164 @@
-/*
- * Copyright (c) 2017, Alex Taradov <alex@taradov.com>
- * All rights reserved.
+/* 
+ * The MIT License (MIT)
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
  */
 
-
-/*- Includes ----------------------------------------------------------------*/
-#include <stdalign.h>
-#include "usb.h"
+#include "tusb.h"
 #include "usb_descriptors.h"
 
-/*- Variables ---------------------------------------------------------------*/
-const alignas(4) usb_device_descriptor_t usb_device_descriptor =
+/* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
+ * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
+ *
+ * Auto ProductID layout's Bitmap:
+ *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
+ */
+#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
+#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
+                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
+
+//--------------------------------------------------------------------+
+// Device Descriptors
+//--------------------------------------------------------------------+
+tusb_desc_device_t const desc_device =
 {
-  .bLength            = sizeof(usb_device_descriptor_t),
-  .bDescriptorType    = USB_DEVICE_DESCRIPTOR,
-  .bcdUSB             = 0x0110,
-  .bDeviceClass       = 0xFF,
-  .bDeviceSubClass    = 0,
-  .bDeviceProtocol    = 0,
-  .bMaxPacketSize0    = 64,
-  .idVendor           = 0x726c,
-  .idProduct          = 0x3101,
-  .bcdDevice          = 0x0100,
-  .iManufacturer      = USB_STR_MANUFACTURER,
-  .iProduct           = USB_STR_PRODUCT,
-  .iSerialNumber      = USB_STR_SERIAL_NUMBER,
-  .bNumConfigurations = 1,
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0200, // at least 2.1 or 3.x for BOS & webUSB
+
+    // Use Interface Association Descriptor (IAD) for CDC
+    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    .bDeviceClass       = TUSB_CLASS_VENDOR_SPECIFIC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = 0,
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+
+    .idVendor           = 0x726c,
+    .idProduct          = 0x3101,
+    .bcdDevice          = 0x0100,
+
+    .iManufacturer      = 0x01,
+    .iProduct           = 0x02,
+    .iSerialNumber      = 0x03,
+
+    .bNumConfigurations = 0x01
 };
 
-const alignas(4) usb_configuration_hierarchy_t usb_configuration_hierarchy =
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
 {
-  .configuration =
-  {
-    .bLength             = sizeof(usb_configuration_descriptor_t),
-    .bDescriptorType     = USB_CONFIGURATION_DESCRIPTOR,
-    .wTotalLength        = sizeof(usb_configuration_hierarchy_t),
-    .bNumInterfaces      = 1,
-    .bConfigurationValue = 1,
-    .iConfiguration      = 0,
-    .bmAttributes        = 0x80,
-    .bMaxPower           = 50, // 100 mA
-  },
+  return (uint8_t const *) &desc_device;
+}
 
-
-  .interface_data =
-  {
-    .bLength             = sizeof(usb_interface_descriptor_t),
-    .bDescriptorType     = USB_INTERFACE_DESCRIPTOR,
-    .bInterfaceNumber    = 0,
-    .bAlternateSetting   = 0,
-    .bNumEndpoints       = 2,
-    .bInterfaceClass     = 0xFF,
-    .bInterfaceSubClass  = 0,
-    .bInterfaceProtocol  = 0,
-    .iInterface          = 0,
-  },
-
-  .ep_in =
-  {
-    .bLength             = sizeof(usb_endpoint_descriptor_t),
-    .bDescriptorType     = USB_ENDPOINT_DESCRIPTOR,
-    .bEndpointAddress    = USB_IN_ENDPOINT | USB_CDC_EP_SEND,
-    .bmAttributes        = USB_BULK_ENDPOINT,
-    .wMaxPacketSize      = 64,
-    .bInterval           = 0,
-  },
-
-  .ep_out =
-  {
-    .bLength             = sizeof(usb_endpoint_descriptor_t),
-    .bDescriptorType     = USB_ENDPOINT_DESCRIPTOR,
-    .bEndpointAddress    = USB_OUT_ENDPOINT | USB_CDC_EP_RECV,
-    .bmAttributes        = USB_BULK_ENDPOINT,
-    .wMaxPacketSize      = 64,
-    .bInterval           = 0,
-  },
+//--------------------------------------------------------------------+
+// Configuration Descriptor
+//--------------------------------------------------------------------+
+enum
+{
+  ITF_NUM_VENDOR,
+  ITF_NUM_TOTAL
 };
 
-const alignas(4) usb_string_descriptor_zero_t usb_string_descriptor_zero =
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN)
+
+  #define EPNUM_VENDOR_IN  1
+  #define EPNUM_VENDOR_OUT 2
+
+
+uint8_t const desc_configuration[] =
 {
-  .bLength               = sizeof(usb_string_descriptor_zero_t),
-  .bDescriptorType       = USB_STRING_DESCRIPTOR,
-  .wLANGID               = 0x0409, // English (United States)
+  // Config number, interface count, string index, total length, attribute, power in mA
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
+
+  // Interface number, string index, EP Out & IN address, EP size
+  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 3, EPNUM_VENDOR_OUT, 0x80 | EPNUM_VENDOR_IN, TUD_OPT_HIGH_SPEED ? 512 : 64)
 };
 
-char usb_serial_number[16];
-
-const char *const usb_strings[] =
+// Invoked when received GET CONFIGURATION DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  [USB_STR_MANUFACTURER]  = "StackFoundry LLC",
-  [USB_STR_PRODUCT]       = "ReefVolt DualDoser",
-  [USB_STR_SERIAL_NUMBER] = usb_serial_number,
+  (void) index; // for multiple configurations
+  return desc_configuration;
+}
+
+//--------------------------------------------------------------------+
+// String Descriptors
+//--------------------------------------------------------------------+
+
+
+// array of pointer to string descriptors
+char const *string_desc_arr[] =
+    {
+        (const char[]){0x09, 0x04}, // 0: is supported language is English (0x0409)
+        "StackFoundry LLC",         // 1: Manufacturer
+        "ReefVolt DualDoser",       // 2: Product
+        "123456",                   // 3: Serials, should use chip ID
+        "VendorIF"                  // 4: Vendor Interface
 };
+
+static uint16_t _desc_str[32];
+extern uint8_t usb_serial_number[9];
+
+// Invoked when received GET STRING DESCRIPTOR request
+// Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
+uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid)
+{
+  (void)langid;
+
+  uint8_t chr_count;
+
+  if (index == 0)
+  {
+    memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    chr_count = 1;
+  }
+  else
+  {
+    // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
+    // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
+
+    if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])))
+      return NULL;
+
+    const char *str = string_desc_arr[index];
+    if (index == 3)
+      str = usb_serial_number;
+    // Cap at max char
+    chr_count = strlen(str);
+    if (chr_count > 31)
+      chr_count = 31;
+
+    // Convert ASCII string into UTF-16
+    for (uint8_t i = 0; i < chr_count; i++)
+    {
+      _desc_str[1 + i] = str[i];
+    }
+  }
+
+  // first byte is length (including header), second byte is string type
+  _desc_str[0] = (TUSB_DESC_STRING << 8) | (2 * chr_count + 2);
+
+  return _desc_str;
+}

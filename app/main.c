@@ -36,8 +36,7 @@
 #include "samd11.h"
 #include "hal_gpio.h"
 #include "nvm_data.h"
-#include "usb.h"
-#include "usb_vendor.h"
+#include "tusb.h"
 
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE 64
@@ -56,18 +55,54 @@ HAL_GPIO_PIN(BUTTON, A, 16);
 
 HAL_GPIO_PIN(PWRIN, A, 2);
 
-/*- Variables ---------------------------------------------------------------*/
-static alignas(4) uint8_t app_recv_buffer[USB_BUFFER_SIZE];
-static alignas(4) uint8_t app_send_buffer[USB_BUFFER_SIZE];
-static int app_recv_buffer_size = 0;
+HAL_GPIO_PIN(USB_DM, A, 24);
+HAL_GPIO_PIN(USB_DP, A, 25);
+
 static bool app_send_buffer_free = true;
 static int app_system_time = 0;
-static int app_uart_timeout = 0;
-static bool app_status = false;
-static int app_status_timeout = 0;
+static int app_status = 0;
 static int app_last_interval = 0;
-static bool app_incoming = false;
+static int app_status_timeout = 0;
+static bool web_serial_connected = true;
 
+uint8_t usb_serial_number[9];
+
+
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  return true;
+}
+
+
+// Invoked when device is mounted
+void tud_mount_cb(void)
+{
+  HAL_GPIO_BLUE_set();
+}
+
+// Invoked when device is unmounted
+void tud_umount_cb(void)
+{
+  HAL_GPIO_BLUE_clr();
+}
+
+// Invoked when usb bus is suspended
+// remote_wakeup_en : if host allow us  to perform remote wakeup
+// Within 7ms, device must draw an average of current less than 2.5 mA from bus
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  (void) remote_wakeup_en;
+  
+}
+
+// Invoked when usb bus is resumed
+void tud_resume_cb(void)
+{
+ 
+}
 /*- Implementations ---------------------------------------------------------*/
 
 //-----------------------------------------------------------------------------
@@ -157,7 +192,7 @@ static void status_task(void)
   {
     if (app_system_time / 100 != app_last_interval)
     {
-      HAL_GPIO_BLUE_toggle();
+      //HAL_GPIO_BLUE_toggle();
       app_last_interval = app_system_time / 100;
     }
   }
@@ -171,36 +206,6 @@ static void status_task(void)
   {
     HAL_GPIO_RED_clr();
   }
-}
-
-//-----------------------------------------------------------------------------
-void usb_vendor_send_callback(void)
-{
-  app_send_buffer_free = true;
-}
-
-//-----------------------------------------------------------------------------
-void usb_vendor_recv_callback(int size)
-{
-  app_incoming = true;
-  app_recv_buffer_size = size;
-}
-
-//-----------------------------------------------------------------------------
-void usb_configuration_callback(int config)
-{
-  usb_vendor_recv(app_recv_buffer, sizeof(app_recv_buffer));
-  (void)config;
-}
-
-//-----------------------------------------------------------------------------
-static void tx_task(void)
-{
-}
-
-//-----------------------------------------------------------------------------
-static void rx_task(void)
-{
 }
 
 static void gpio_init(void)
@@ -256,6 +261,49 @@ static void button_handler(void)
   }
 }
 
+void usb_init(void)
+{
+  HAL_GPIO_USB_DM_pmuxen(PORT_PMUX_PMUXE_G_Val);
+  HAL_GPIO_USB_DP_pmuxen(PORT_PMUX_PMUXE_G_Val);
+
+  PM->APBBMASK.reg |= PM_APBBMASK_USB;
+
+  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_ID(USB_GCLK_ID) |
+                      GCLK_CLKCTRL_GEN(0);
+
+  USB->DEVICE.CTRLA.bit.SWRST = 1;
+  while (USB->DEVICE.SYNCBUSY.bit.SWRST)
+    ;
+
+  USB->DEVICE.PADCAL.bit.TRANSN = NVM_READ_CAL(NVM_USB_TRANSN);
+  USB->DEVICE.PADCAL.bit.TRANSP = NVM_READ_CAL(NVM_USB_TRANSP);
+  USB->DEVICE.PADCAL.bit.TRIM = NVM_READ_CAL(NVM_USB_TRIM);
+}
+void webserial_task(void)
+{
+  if ( web_serial_connected )
+  {
+    if ( tud_vendor_available() && tud_vendor_mounted())
+    {
+      uint8_t buf[64];
+      uint32_t count = tud_vendor_read(buf, sizeof(buf));
+
+      // echo back to both web serial and cdc
+      echo_all(buf, count);
+    }
+  }
+}
+
+// send characters to both CDC and WebUSB
+void echo_all(uint8_t buf[], uint32_t count)
+{
+  // echo to web serial
+  if ( web_serial_connected && tud_vendor_mounted() )
+  {
+    tud_vendor_write(buf, count);
+  }
+
+}
 //-----------------------------------------------------------------------------
 int main(void)
 {
@@ -263,30 +311,21 @@ int main(void)
   sys_time_init();
   gpio_init();
   usb_init();
-  usb_vendor_init();
+  tusb_init();
 
   while (1)
   {
-    HAL_GPIO_GREEN_toggle();
     sys_time_task();
-    usb_task();
-    tx_task();
-    rx_task();
     status_task();
     button_handler();
-    if (app_incoming)
-    {
-      usb_vendor_recv(app_recv_buffer, app_recv_buffer_size);
-      if (app_recv_buffer[0] == 1)
-      {
-        HAL_GPIO_PUMP2_set();
-      }
-      if (app_send_buffer_free) {
-        usb_vendor_send(app_send_buffer, 1);
-      }
-      app_incoming = false;
-    }
+    tud_task(); // device task
+    webserial_task();
   }
 
   return 0;
+}
+
+void USB_Handler(void)
+{
+  tud_int_handler(0);
 }
