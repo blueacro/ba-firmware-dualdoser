@@ -32,7 +32,7 @@
 /*- Includes ----------------------------------------------------------------*/
 #include "usb.h"
 #include "usb_std.h"
-#include "usb_cdc.h"
+#include "usb_vendor.h"
 
 /*- Definitions -------------------------------------------------------------*/
 enum
@@ -56,10 +56,6 @@ typedef struct PACK
 {
   usb_configuration_descriptor_t                   configuration;
   usb_interface_descriptor_t                       interface_comm;
-  usb_cdc_header_functional_descriptor_t           cdc_header;
-  usb_cdc_abstract_control_managment_descriptor_t  cdc_acm;
-  usb_cdc_call_managment_functional_descriptor_t   cdc_call_mgmt;
-  usb_cdc_union_functional_descriptor_t            cdc_union;
   usb_endpoint_descriptor_t                        ep_comm;
   usb_interface_descriptor_t                       interface_data;
   usb_endpoint_descriptor_t                        ep_in;

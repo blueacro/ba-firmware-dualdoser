@@ -15,7 +15,8 @@
             ],
             "defines": [
                 "__SAMD11D14AM__",
-                "DONT_USE_CMSIS_INIT"
+                "DONT_USE_CMSIS_INIT",
+                "F_CPU=48000000"
             ],
             "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "gnu99",

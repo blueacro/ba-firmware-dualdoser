@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2022, StackFoundry LLC
  * Copyright (c) 2017, Alex Taradov <alex@taradov.com>
  * All rights reserved.
  *
@@ -36,18 +37,29 @@
 #include "hal_gpio.h"
 #include "nvm_data.h"
 #include "usb.h"
-#include "uart.h"
+#include "usb_vendor.h"
 
 /*- Definitions -------------------------------------------------------------*/
-#define USB_BUFFER_SIZE        64
-#define UART_WAIT_TIMEOUT      10 // ms
+#define USB_BUFFER_SIZE 64
 
-// NOTE: Set both rising and falling edge times to 0 to disable edge detection.
-HAL_GPIO_PIN(STATUS,           A, 9);
-#define STATUS_INACTIVE_STATE  0 // 0 - Low, 1 - High, 2 - Hi-Z
-#define STATUS_ACTIVE_STATE    1 // 0 - Low, 1 - High, 2 - Hi-Z
-#define STATUS_RISING_EDGE     0 // ms
-#define STATUS_FALLING_EDGE    0 // ms
+HAL_GPIO_PIN(RED, A, 17);
+HAL_GPIO_PIN(GREEN, A, 22);
+HAL_GPIO_PIN(BLUE, A, 23);
+
+HAL_GPIO_PIN(PUMP1, A, 6);
+HAL_GPIO_PIN(PUMP2, A, 7);
+
+HAL_GPIO_PIN(FLOAT1, A, 8);
+HAL_GPIO_PIN(FLOAT2, A, 9);
+
+HAL_GPIO_PIN(BUTTON, A, 16);
+
+HAL_GPIO_PIN(PWRIN, A, 2);
+
+#define STATUS_INACTIVE_STATE 0 // 0 - Low, 1 - High, 2 - Hi-Z
+#define STATUS_ACTIVE_STATE 1   // 0 - Low, 1 - High, 2 - Hi-Z
+#define STATUS_RISING_EDGE 0    // ms
+#define STATUS_FALLING_EDGE 0   // ms
 
 /*- Variables ---------------------------------------------------------------*/
 static alignas(4) uint8_t app_recv_buffer[USB_BUFFER_SIZE];
@@ -69,7 +81,6 @@ static void sys_init(void)
 {
   uint32_t sn = 0;
 
-#if 1
   /*
   configure oscillator for crystal-free USB operation (USBCRM / USB Clock Recovery Mode)
   */
@@ -78,64 +89,28 @@ static void sys_init(void)
   NVMCTRL->CTRLB.reg = NVMCTRL_CTRLB_CACHEDIS | NVMCTRL_CTRLB_RWS(2);
 
   SYSCTRL->INTFLAG.reg = SYSCTRL_INTFLAG_BOD33RDY | SYSCTRL_INTFLAG_BOD33DET |
-      SYSCTRL_INTFLAG_DFLLRDY;
+                         SYSCTRL_INTFLAG_DFLLRDY;
 
   coarse = NVM_READ_CAL(NVM_DFLL48M_COARSE_CAL);
   fine = NVM_READ_CAL(NVM_DFLL48M_FINE_CAL);
 
   SYSCTRL->DFLLCTRL.reg = 0; // See Errata 9905
-  while (0 == (SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLRDY));
+  while (0 == (SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLRDY))
+    ;
 
   SYSCTRL->DFLLMUL.reg = SYSCTRL_DFLLMUL_MUL(48000);
   SYSCTRL->DFLLVAL.reg = SYSCTRL_DFLLVAL_COARSE(coarse) | SYSCTRL_DFLLVAL_FINE(fine);
 
   SYSCTRL->DFLLCTRL.reg = SYSCTRL_DFLLCTRL_ENABLE | SYSCTRL_DFLLCTRL_USBCRM |
-      SYSCTRL_DFLLCTRL_MODE | SYSCTRL_DFLLCTRL_CCDIS;
+                          SYSCTRL_DFLLCTRL_MODE | SYSCTRL_DFLLCTRL_CCDIS;
 
-  while (0 == (SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLRDY));
+  while (0 == (SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLRDY))
+    ;
 
   GCLK->GENCTRL.reg = GCLK_GENCTRL_ID(0) | GCLK_GENCTRL_SRC(GCLK_SOURCE_DFLL48M) |
-      GCLK_GENCTRL_RUNSTDBY | GCLK_GENCTRL_GENEN;
-  while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
-#else
-  /*
-  configure oscillator for operation disciplined by external 32k crystal
-
-  This can only be used on PCBs (such as Arduino Zero derived designs) that have these extra components populated.
-  It *should* be wholly unnecessary to use this instead of the above USBCRM code.
-  However, some problem (Sparkfun?) PCBs experience unreliable USB operation in USBCRM mode.
-  */
-
-  NVMCTRL->CTRLB.reg = NVMCTRL_CTRLB_RWS_DUAL;
-
-  SYSCTRL->XOSC32K.reg = SYSCTRL_XOSC32K_STARTUP( 0x6u ) | SYSCTRL_XOSC32K_XTALEN | SYSCTRL_XOSC32K_EN32K;
-  SYSCTRL->XOSC32K.reg |= SYSCTRL_XOSC32K_ENABLE;
-
-  while (!(SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_XOSC32KRDY));
-
-  GCLK->GENDIV.reg = GCLK_GENDIV_ID( 1u /* XOSC32K */ );
-
-  GCLK->GENCTRL.reg = GCLK_GENCTRL_ID( 1u /* XOSC32K */ ) | GCLK_GENCTRL_SRC_XOSC32K | GCLK_GENCTRL_GENEN;
-
-  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID( 0u /* DFLL48M */ ) | GCLK_CLKCTRL_GEN_GCLK1 | GCLK_CLKCTRL_CLKEN;
-
-  while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
-
-  SYSCTRL->DFLLCTRL.reg = 0; // See Errata 9905
-  while (!SYSCTRL->PCLKSR.bit.DFLLRDY);
-
-  SYSCTRL->DFLLMUL.reg = SYSCTRL_DFLLMUL_CSTEP( 31 ) | SYSCTRL_DFLLMUL_FSTEP( 511 ) | SYSCTRL_DFLLMUL_MUL(48000000ul / 32768ul);
-
-  SYSCTRL->DFLLCTRL.reg = SYSCTRL_DFLLCTRL_ENABLE | SYSCTRL_DFLLCTRL_MODE | SYSCTRL_DFLLCTRL_WAITLOCK | SYSCTRL_DFLLCTRL_QLDIS;
-
-  while ( !(SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLLCKC) || !(SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLLCKF) || !(SYSCTRL->PCLKSR.reg & SYSCTRL_PCLKSR_DFLLRDY) );
-
-  GCLK->GENDIV.reg = GCLK_GENDIV_ID( 0u /* MAIN */ );
-
-  GCLK->GENCTRL.reg = GCLK_GENCTRL_ID( 0u /* MAIN */ ) | GCLK_GENCTRL_SRC_DFLL48M | GCLK_GENCTRL_IDC | GCLK_GENCTRL_GENEN;
-
-  while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY);
-#endif
+                      GCLK_GENCTRL_RUNSTDBY | GCLK_GENCTRL_GENEN;
+  while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY)
+    ;
 
   sn ^= *(volatile uint32_t *)0x0080a00c;
   sn ^= *(volatile uint32_t *)0x0080a040;
@@ -171,56 +146,8 @@ static int get_system_time(void)
 }
 
 //-----------------------------------------------------------------------------
-static void set_status_state(bool active)
-{
-  if (active)
-  {
-  #if STATUS_ACTIVE_STATE == 0
-    HAL_GPIO_STATUS_out();
-    HAL_GPIO_STATUS_clr();
-  #elif STATUS_ACTIVE_STATE == 1
-    HAL_GPIO_STATUS_out();
-    HAL_GPIO_STATUS_set();
-  #else
-    HAL_GPIO_STATUS_in();
-  #endif
-  }
-  else
-  {
-  #if STATUS_INACTIVE_STATE == 0
-    HAL_GPIO_STATUS_out();
-    HAL_GPIO_STATUS_clr();
-  #elif STATUS_INACTIVE_STATE == 1
-    HAL_GPIO_STATUS_out();
-    HAL_GPIO_STATUS_set();
-  #else
-    HAL_GPIO_STATUS_in();
-  #endif
-  }
-}
-
-//-----------------------------------------------------------------------------
 static void update_status(bool status)
 {
-#if STATUS_RISING_EDGE > 0
-  if (false == app_status && true == status)
-  {
-    set_status_state(true);
-    app_status_timeout = get_system_time() + STATUS_RISING_EDGE;
-  }
-#endif
-
-#if STATUS_FALLING_EDGE > 0
-  if (true == app_status && false == status)
-  {
-    set_status_state(true);
-    app_status_timeout = get_system_time() + STATUS_FALLING_EDGE;
-  }
-#endif
-
-#if STATUS_RISING_EDGE == 0 && STATUS_FALLING_EDGE == 0
-  set_status_state(status);
-#endif
 
   app_status = status;
 }
@@ -230,13 +157,22 @@ static void status_task(void)
 {
   if (app_status_timeout && get_system_time() > app_status_timeout)
   {
-    set_status_state(false);
     app_status_timeout = 0;
+  }
+  if (app_system_time % 100 == 0) {
+    HAL_GPIO_BLUE_toggle();
+  }
+
+  int pwr = HAL_GPIO_PWRIN_read();
+  if (!pwr) {
+    HAL_GPIO_RED_set();
+  } else {
+    HAL_GPIO_RED_clr();
   }
 }
 
 //-----------------------------------------------------------------------------
-void usb_cdc_send_callback(void)
+void usb_vendor_send_callback(void)
 {
   app_send_buffer_free = true;
 }
@@ -247,13 +183,13 @@ static void send_buffer(void)
   app_send_buffer_free = false;
   app_send_zlp = (USB_BUFFER_SIZE == app_send_buffer_ptr);
 
-  usb_cdc_send(app_send_buffer, app_send_buffer_ptr);
+  // usb_cdc_send(app_send_buffer, app_send_buffer_ptr);
 
   app_send_buffer_ptr = 0;
 }
 
 //-----------------------------------------------------------------------------
-void usb_cdc_recv_callback(int size)
+void usb_vendor_recv_callback(int size)
 {
   app_recv_buffer_ptr = 0;
   app_recv_buffer_size = size;
@@ -262,75 +198,42 @@ void usb_cdc_recv_callback(int size)
 //-----------------------------------------------------------------------------
 void usb_configuration_callback(int config)
 {
-  usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
+
+  // usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
   (void)config;
 }
 
-//-----------------------------------------------------------------------------
-void usb_cdc_line_coding_updated(usb_cdc_line_coding_t *line_coding)
-{
-  uart_init(line_coding);
-}
 
-//-----------------------------------------------------------------------------
-void usb_cdc_control_line_state_update(int line_state)
-{
-  update_status(line_state & USB_CDC_CTRL_SIGNAL_DTE_PRESENT);
-}
+
 
 //-----------------------------------------------------------------------------
 static void tx_task(void)
 {
-  while (app_recv_buffer_size)
-  {
-    if (!uart_write_byte(app_recv_buffer[app_recv_buffer_ptr]))
-      break;
-
-    app_recv_buffer_ptr++;
-    app_recv_buffer_size--;
-
-    if (0 == app_recv_buffer_size)
-      usb_cdc_recv(app_recv_buffer, sizeof(app_recv_buffer));
-  }
 }
 
 //-----------------------------------------------------------------------------
 static void rx_task(void)
 {
-  int byte;
-
-  if (!app_send_buffer_free)
-    return;
-
-  while (uart_read_byte(&byte))
-  {
-    app_uart_timeout = get_system_time() + UART_WAIT_TIMEOUT;
-    app_send_buffer[app_send_buffer_ptr++] = byte;
-
-    if (USB_BUFFER_SIZE == app_send_buffer_ptr)
-    {
-      send_buffer();
-      break;
-    }
-  }
 }
 
-//-----------------------------------------------------------------------------
-static void uart_timer_task(void)
+static void gpio_init(void)
 {
-  if (app_uart_timeout && get_system_time() > app_uart_timeout)
-  {
-    if (app_send_zlp || app_send_buffer_ptr)
-      send_buffer();
+  HAL_GPIO_BLUE_out();
+  HAL_GPIO_RED_out();
+  HAL_GPIO_GREEN_out();
 
-    app_uart_timeout = 0;
-  }
-}
+  HAL_GPIO_BUTTON_in();
+  HAL_GPIO_BUTTON_pullup();
+  HAL_GPIO_FLOAT1_in();
+  HAL_GPIO_FLOAT1_pullup();
+  HAL_GPIO_FLOAT2_in();
+  HAL_GPIO_FLOAT2_pullup();
 
-//-----------------------------------------------------------------------------
-void uart_serial_state_update(int state)
-{
-  usb_cdc_set_state(state);
+  HAL_GPIO_PUMP1_out();
+  HAL_GPIO_PUMP2_out();
+
+  HAL_GPIO_PWRIN_in();
+
 }
 
 //-----------------------------------------------------------------------------
@@ -338,9 +241,9 @@ int main(void)
 {
   sys_init();
   sys_time_init();
+  gpio_init();
   usb_init();
-  usb_cdc_init();
-  set_status_state(false);
+  usb_vendor_init();
 
   while (1)
   {
@@ -348,7 +251,6 @@ int main(void)
     usb_task();
     tx_task();
     rx_task();
-    uart_timer_task();
     status_task();
   }
 

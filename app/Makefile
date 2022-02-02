@@ -1,6 +1,6 @@
 ##############################################################################
 BUILD = build
-BIN = vcp
+BIN = dualdoser
 
 ##############################################################################
 .PHONY: all directory clean size
@@ -9,7 +9,7 @@ CC = arm-none-eabi-gcc
 OBJCOPY = arm-none-eabi-objcopy
 SIZE = arm-none-eabi-size
 
-CFLAGS += -W -Wall --std=gnu11 -Os
+CFLAGS += -W -Wall -g3 --std=gnu11 -Os
 CFLAGS += -fno-diagnostics-show-caret
 CFLAGS += -fdata-sections -ffunction-sections
 CFLAGS += -funsigned-char -funsigned-bitfields
@@ -18,20 +18,19 @@ CFLAGS += -MD -MP -MT $(BUILD)/$(*F).o -MF $(BUILD)/$(@F).d
 
 LDFLAGS += -mcpu=cortex-m0plus -mthumb
 LDFLAGS += -Wl,--gc-sections
-LDFLAGS += -Wl,--script=../linker/samd11d14.ld
+LDFLAGS += -Wl,--script=linker/samd11d14.ld
 
 INCLUDES += \
-  -I../include \
-  -I..
+  -Iinclude \
+  -I.
 
 SRCS += \
-  ../main.c \
-  ../uart.c \
-  ../usb.c \
-  ../usb_std.c \
-  ../usb_cdc.c \
-  ../usb_descriptors.c \
-  ../startup_samd11.c
+  main.c \
+  usb.c \
+  usb_std.c \
+  usb_vendor.c \
+  usb_descriptors.c \
+  startup_samd11.c
 
 DEFINES += \
   -D__SAMD11C14A__ \
@@ -59,7 +58,7 @@ $(BUILD)/$(BIN).bin: $(BUILD)/$(BIN).elf
 
 %.o:
 	@echo CC $@
-	@$(CC) $(CFLAGS) $(filter %/$(subst .o,.c,$(notdir $@)), $(SRCS)) -c -o $@
+	@$(CC) $(CFLAGS) $(subst .o,.c,$(notdir $@)) -c -o $@
 
 directory:
 	@mkdir -p $(BUILD)

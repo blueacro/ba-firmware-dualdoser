@@ -26,9 +26,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+/* Set origin to 0x00000400 for bootloader, 0x0 to skip bootloader */
+
 MEMORY
 {
-  flash (rx) : ORIGIN = 0x00000400, LENGTH = 0x3C00 /* 15k */
+  flash (rx) : ORIGIN = 0x00000000, LENGTH = 0x3C00 /* 15k */
   ram  (rwx) : ORIGIN = 0x20000000, LENGTH = 0x1000 /* 4k */
 }
 

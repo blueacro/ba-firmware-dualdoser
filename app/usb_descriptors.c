@@ -42,8 +42,8 @@ const alignas(4) usb_device_descriptor_t usb_device_descriptor =
   .bDeviceSubClass    = 0,
   .bDeviceProtocol    = 0,
   .bMaxPacketSize0    = 64,
-  .idVendor           = 0x6666,
-  .idProduct          = 0x8888,
+  .idVendor           = 0x726c,
+  .idProduct          = 0x3101,
   .bcdDevice          = 0x0100,
   .iManufacturer      = USB_STR_MANUFACTURER,
   .iProduct           = USB_STR_PRODUCT,
@@ -72,44 +72,10 @@ const alignas(4) usb_configuration_hierarchy_t usb_configuration_hierarchy =
     .bInterfaceNumber    = 0,
     .bAlternateSetting   = 0,
     .bNumEndpoints       = 1,
-    .bInterfaceClass     = USB_CDC_COMM_CLASS,
-    .bInterfaceSubClass  = USB_CDC_ACM_SUBCLASS,
+    .bInterfaceClass     = 0xFF,
+    .bInterfaceSubClass  = 0x00,
     .bInterfaceProtocol  = 0,
     .iInterface          = 0,
-  },
-
-  .cdc_header =
-  {
-    .bFunctionalLength   = sizeof(usb_cdc_header_functional_descriptor_t),
-    .bDescriptorType     = USB_CS_INTERFACE_DESCRIPTOR,
-    .bDescriptorSubtype  = USB_CDC_HEADER_SUBTYPE,
-    .bcdCDC              = 0x0110,
-  },
-
-  .cdc_acm =
-  {
-    .bFunctionalLength   = sizeof(usb_cdc_abstract_control_managment_descriptor_t),
-    .bDescriptorType     = USB_CS_INTERFACE_DESCRIPTOR,
-    .bDescriptorSubtype  = USB_CDC_ACM_SUBTYPE,
-    .bmCapabilities      = USB_CDC_ACM_SUPPORT_LINE_REQUESTS,
-  },
-
-  .cdc_call_mgmt =
-  {
-    .bFunctionalLength   = sizeof(usb_cdc_call_managment_functional_descriptor_t),
-    .bDescriptorType     = USB_CS_INTERFACE_DESCRIPTOR,
-    .bDescriptorSubtype  = USB_CDC_CALL_MGMT_SUBTYPE,
-    .bmCapabilities      = USB_CDC_CALL_MGMT_OVER_DCI,
-    .bDataInterface      = 1,
-  },
-
-  .cdc_union =
-  {
-    .bFunctionalLength   = sizeof(usb_cdc_union_functional_descriptor_t),
-    .bDescriptorType     = USB_CS_INTERFACE_DESCRIPTOR,
-    .bDescriptorSubtype  = USB_CDC_UNION_SUBTYPE,
-    .bMasterInterface    = 0,
-    .bSlaveInterface0    = 1,
   },
 
   .ep_comm =
@@ -129,7 +95,7 @@ const alignas(4) usb_configuration_hierarchy_t usb_configuration_hierarchy =
     .bInterfaceNumber    = 1,
     .bAlternateSetting   = 0,
     .bNumEndpoints       = 2,
-    .bInterfaceClass     = USB_CDC_DATA_CLASS,
+    .bInterfaceClass     = 0xFF,
     .bInterfaceSubClass  = 0,
     .bInterfaceProtocol  = 0,
     .iInterface          = 0,
@@ -167,7 +133,7 @@ char usb_serial_number[16];
 
 const char *const usb_strings[] =
 {
-  [USB_STR_MANUFACTURER]  = "Alex Taradov",
-  [USB_STR_PRODUCT]       = "Virtual COM-Port",
+  [USB_STR_MANUFACTURER]  = "StackFoundry LLC",
+  [USB_STR_PRODUCT]       = "ReefVolt DualDoser",
   [USB_STR_SERIAL_NUMBER] = usb_serial_number,
 };
