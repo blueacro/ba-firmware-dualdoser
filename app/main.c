@@ -37,6 +37,7 @@
 #include "hal_gpio.h"
 #include "nvm_data.h"
 #include "tusb.h"
+#include "commands.h"
 
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE 64
@@ -45,8 +46,8 @@ HAL_GPIO_PIN(RED, A, 17);
 HAL_GPIO_PIN(GREEN, A, 22);
 HAL_GPIO_PIN(BLUE, A, 23);
 
-HAL_GPIO_PIN(PUMP1, A, 6);
-HAL_GPIO_PIN(PUMP2, A, 7);
+HAL_GPIO_PIN(PUMP1, A, 7);
+HAL_GPIO_PIN(PUMP2, A, 6);
 
 HAL_GPIO_PIN(FLOAT1, A, 8);
 HAL_GPIO_PIN(FLOAT2, A, 9);
@@ -58,24 +59,29 @@ HAL_GPIO_PIN(PWRIN, A, 2);
 HAL_GPIO_PIN(USB_DM, A, 24);
 HAL_GPIO_PIN(USB_DP, A, 25);
 
-static bool app_send_buffer_free = true;
-static int app_system_time = 0;
-static int app_status = 0;
-static int app_last_interval = 0;
-static int app_status_timeout = 0;
-static bool web_serial_connected = true;
+// 1ms system core clock since start
+static uint64_t app_system_time = 0;
+
+typedef struct
+{
+  // Timestamp of the pump turnoff point
+  uint64_t pump_run_till;
+  // Speed of the pump set
+  uint8_t pump_speed;
+} pump_status_t;
+
+// Pump status register
+static pump_status_t pumps[2];
 
 uint8_t usb_serial_number[9];
-
 
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
   return true;
 }
-
 
 // Invoked when device is mounted
 void tud_mount_cb(void)
@@ -94,18 +100,16 @@ void tud_umount_cb(void)
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en)
 {
-  (void) remote_wakeup_en;
-  
+  (void)remote_wakeup_en;
+  HAL_GPIO_BLUE_clr();
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
- 
+  HAL_GPIO_BLUE_set();
 }
-/*- Implementations ---------------------------------------------------------*/
 
-//-----------------------------------------------------------------------------
 static void sys_init(void)
 {
   uint32_t sn = 0;
@@ -155,17 +159,16 @@ static void sys_init(void)
 //-----------------------------------------------------------------------------
 static void sys_time_init(void)
 {
-  SysTick->VAL = 0;
   SysTick->LOAD = F_CPU / 1000ul;
-  SysTick->CTRL = SysTick_CTRL_ENABLE_Msk;
+  SysTick->VAL = 0;
+  SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk;
+  NVIC_EnableIRQ(SysTick_IRQn);
   app_system_time = 0;
 }
 
 //-----------------------------------------------------------------------------
 static void sys_time_task(void)
 {
-  if (SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk)
-    app_system_time++;
 }
 
 //-----------------------------------------------------------------------------
@@ -175,28 +178,8 @@ static int get_system_time(void)
 }
 
 //-----------------------------------------------------------------------------
-static void update_status(bool status)
-{
-
-  app_status = status;
-}
-
-//-----------------------------------------------------------------------------
 static void status_task(void)
 {
-  if (app_status_timeout && get_system_time() > app_status_timeout)
-  {
-    app_status_timeout = 0;
-  }
-  if (app_system_time % 100 == 0)
-  {
-    if (app_system_time / 100 != app_last_interval)
-    {
-      //HAL_GPIO_BLUE_toggle();
-      app_last_interval = app_system_time / 100;
-    }
-  }
-
   int pwr = HAL_GPIO_PWRIN_read();
   if (!pwr)
   {
@@ -227,15 +210,55 @@ static void gpio_init(void)
   HAL_GPIO_PWRIN_in();
 }
 
-static void button_handler(void)
+// Helper function to set the GPIO decoded
+static void _pump_pin_set(uint8_t pump, uint8_t set)
+{
+  switch (pump)
+  {
+  case 0:
+    if (set)
+      HAL_GPIO_PUMP1_set();
+    else
+      HAL_GPIO_PUMP1_clr();
+    break;
+  case 1:
+    if (set)
+      HAL_GPIO_PUMP2_set();
+    else
+      HAL_GPIO_PUMP2_clr();
+  default:
+    break;
+  }
+}
+
+static void pump_task(void)
+{
+  for (int i = 0; i < 2; i++)
+  {
+    // If there is no new command, turn off the pump
+    if (pumps[i].pump_run_till < app_system_time)
+    {
+      pumps[i].pump_speed = 0;
+    }
+    _pump_pin_set(i, pumps[i].pump_speed);
+  }
+}
+
+static void pump_turnon_for(int pump, uint8_t speed, uint64_t millis)
+{
+  pumps[pump].pump_speed = speed;
+  pumps[pump].pump_run_till = app_system_time + millis;
+}
+
+static void button_task(void)
 {
   static int button_state = 0;
   static int last_button_state = 0;
-  static int last_button_time = 0;
+  static uint64_t last_button_time = 0;
   static int button_counts = 0;
 
   // Debounce everything
-  if (last_button_time + 50 > app_system_time)
+  if (last_button_time + 100 > app_system_time)
   {
     return;
   }
@@ -246,17 +269,23 @@ static void button_handler(void)
   if (last_button_state == button_state)
   {
     button_counts += 1;
-    if (button_state)
-    {
-      HAL_GPIO_PUMP1_set();
-    }
-    else
-    {
-      HAL_GPIO_PUMP1_clr();
-    }
+    if (button_state && button_counts > 10)
+      HAL_GPIO_GREEN_set();
+    if (button_state && button_counts > 20)
+      HAL_GPIO_GREEN_clr();
   }
   else
   {
+    // Button state change, do a thing
+    if (last_button_state && button_counts > 20)
+    {
+      pump_turnon_for(0, 1, 5000);
+    }
+    else if (last_button_state && button_counts > 10)
+    {
+      pump_turnon_for(1, 1, 5000);
+    }
+    HAL_GPIO_GREEN_clr();
     button_counts = 0;
   }
 }
@@ -279,31 +308,60 @@ void usb_init(void)
   USB->DEVICE.PADCAL.bit.TRANSP = NVM_READ_CAL(NVM_USB_TRANSP);
   USB->DEVICE.PADCAL.bit.TRIM = NVM_READ_CAL(NVM_USB_TRIM);
 }
-void webserial_task(void)
+
+void command_processor_task(void)
 {
-  if ( web_serial_connected )
+
+  if (tud_vendor_available() && tud_vendor_mounted())
   {
-    if ( tud_vendor_available() && tud_vendor_mounted())
+    uint8_t buf[64];
+    uint32_t count = tud_vendor_read(buf, sizeof(buf));
+
+    const command_header_t *header = (const command_header_t *)&buf;
+    switch (header->command_byte)
     {
-      uint8_t buf[64];
-      uint32_t count = tud_vendor_read(buf, sizeof(buf));
-
-      // echo back to both web serial and cdc
-      echo_all(buf, count);
+    case COMMAND_READ:
+    {
+      const command_set_outputs_t *command = (const command_set_outputs_t *)&buf;
+      pump_turnon_for(0, command->pump1, 5000);
+      pump_turnon_for(1, command->pump2, 5000);
     }
+    break;
+    case COMMAND_SET_OUTPUTS:
+
+      break;
+    default:
+      break;
+    }
+    send_response();
   }
 }
 
-// send characters to both CDC and WebUSB
-void echo_all(uint8_t buf[], uint32_t count)
+void send_response()
 {
-  // echo to web serial
-  if ( web_serial_connected && tud_vendor_mounted() )
+  int floats = 0;
+  if (HAL_GPIO_FLOAT1_read())
   {
-    tud_vendor_write(buf, count);
+    floats = 1;
   }
-
+  if (HAL_GPIO_FLOAT2_read())
+  {
+    floats |= (1 << 1);
+  }
+  response_t response = {
+      .header = {.response_byte = RESPONSE_STATUS},
+      .power_status = !HAL_GPIO_PWRIN_read(),
+      .pump1_status = pumps[0].pump_speed,
+      .pump2_status = pumps[1].pump_speed,
+      .float_status = floats,
+      .analog_float_status = 0};
+  // echo to web serial
+  if (tud_vendor_mounted())
+  {
+    tud_vendor_write((const void *)&response, sizeof(response));
+  }
 }
+
 //-----------------------------------------------------------------------------
 int main(void)
 {
@@ -317,15 +375,24 @@ int main(void)
   {
     sys_time_task();
     status_task();
-    button_handler();
+    button_task();
     tud_task(); // device task
-    webserial_task();
+    command_processor_task();
+    pump_task();
   }
 
   return 0;
 }
 
+/////////////////////////////////////////////
+// Interrupt Handlers
+
 void USB_Handler(void)
 {
   tud_int_handler(0);
+}
+
+void SysTick_Handler(void)
+{
+  app_system_time++;
 }

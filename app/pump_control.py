@@ -1,5 +1,6 @@
 import usb.core
 import usb.util
+import time
 
 # find our device
 dev = usb.core.find(idVendor=0x726c, idProduct=0x3101)
@@ -10,11 +11,15 @@ if dev is None:
 
 # set the active configuration. With no arguments, the first
 # configuration will be the active one
+dev.reset()
+
 dev.set_configuration()
 
 # get an endpoint instance
 cfg = dev.get_active_configuration()
 intf = cfg[(0,0)]
+usb.util.claim_interface(dev, intf)
+
 
 ep = usb.util.find_descriptor(
     intf,
@@ -39,8 +44,13 @@ assert epin is not None
 
 for x in range(0,100):
 # write the data
-    ep.write(b'test')
-    print("wrote")
+    ep.write(b'\x01\x01\x01')
+    print("wrote both pumps on")
     print(epin.read(64))
+    time.sleep(1)
+    ep.write(b'\x01\x00\x00')
+    print("wrote both pumps off")
+    print(epin.read(64))
+    time.sleep(1)
 
 usb.util.release_interface(dev, intf)
