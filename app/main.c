@@ -58,8 +58,11 @@ HAL_GPIO_PIN(PWRIN, A, 2);
 HAL_GPIO_PIN(USB_DM, A, 24);
 HAL_GPIO_PIN(USB_DP, A, 25);
 
+// 1ms system core clock since start
+static uint64_t app_system_time = 0;
+
 static bool app_send_buffer_free = true;
-static int app_system_time = 0;
+
 static int app_status = 0;
 static int app_last_interval = 0;
 static int app_status_timeout = 0;
@@ -67,15 +70,13 @@ static bool web_serial_connected = true;
 
 uint8_t usb_serial_number[9];
 
-
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
-bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
   return true;
 }
-
 
 // Invoked when device is mounted
 void tud_mount_cb(void)
@@ -94,14 +95,12 @@ void tud_umount_cb(void)
 // Within 7ms, device must draw an average of current less than 2.5 mA from bus
 void tud_suspend_cb(bool remote_wakeup_en)
 {
-  (void) remote_wakeup_en;
-  
+  (void)remote_wakeup_en;
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
- 
 }
 /*- Implementations ---------------------------------------------------------*/
 
@@ -155,17 +154,16 @@ static void sys_init(void)
 //-----------------------------------------------------------------------------
 static void sys_time_init(void)
 {
-  SysTick->VAL = 0;
   SysTick->LOAD = F_CPU / 1000ul;
-  SysTick->CTRL = SysTick_CTRL_ENABLE_Msk;
+  SysTick->VAL = 0;
+  SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk;
+  NVIC_EnableIRQ(SysTick_IRQn);
   app_system_time = 0;
 }
 
 //-----------------------------------------------------------------------------
 static void sys_time_task(void)
 {
-  if (SysTick->CTRL & SysTick_CTRL_COUNTFLAG_Msk)
-    app_system_time++;
 }
 
 //-----------------------------------------------------------------------------
@@ -192,7 +190,7 @@ static void status_task(void)
   {
     if (app_system_time / 100 != app_last_interval)
     {
-      //HAL_GPIO_BLUE_toggle();
+      // HAL_GPIO_BLUE_toggle();
       app_last_interval = app_system_time / 100;
     }
   }
@@ -227,11 +225,11 @@ static void gpio_init(void)
   HAL_GPIO_PWRIN_in();
 }
 
-static void button_handler(void)
+static void button_task(void)
 {
   static int button_state = 0;
   static int last_button_state = 0;
-  static int last_button_time = 0;
+  static uint64_t last_button_time = 0;
   static int button_counts = 0;
 
   // Debounce everything
@@ -279,11 +277,12 @@ void usb_init(void)
   USB->DEVICE.PADCAL.bit.TRANSP = NVM_READ_CAL(NVM_USB_TRANSP);
   USB->DEVICE.PADCAL.bit.TRIM = NVM_READ_CAL(NVM_USB_TRIM);
 }
-void webserial_task(void)
+
+void command_processor_task(void)
 {
-  if ( web_serial_connected )
+  if (web_serial_connected)
   {
-    if ( tud_vendor_available() && tud_vendor_mounted())
+    if (tud_vendor_available() && tud_vendor_mounted())
     {
       uint8_t buf[64];
       uint32_t count = tud_vendor_read(buf, sizeof(buf));
@@ -298,12 +297,13 @@ void webserial_task(void)
 void echo_all(uint8_t buf[], uint32_t count)
 {
   // echo to web serial
-  if ( web_serial_connected && tud_vendor_mounted() )
+  if (web_serial_connected && tud_vendor_mounted())
   {
     tud_vendor_write(buf, count);
   }
-
 }
+
+
 //-----------------------------------------------------------------------------
 int main(void)
 {
@@ -317,15 +317,23 @@ int main(void)
   {
     sys_time_task();
     status_task();
-    button_handler();
+    button_task();
     tud_task(); // device task
-    webserial_task();
+    command_processor_task();
   }
 
   return 0;
 }
 
+/////////////////////////////////////////////
+// Interrupt Handlers
+
 void USB_Handler(void)
 {
   tud_int_handler(0);
+}
+
+void SysTick_Handler(void)
+{
+  app_system_time++;
 }
