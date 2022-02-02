@@ -6,8 +6,8 @@
 
 enum COMMAND
 {
-    COMMAND_READ = 1,
-    COMMAND_SET_OUTPUTS = 2
+    COMMAND_SET_OUTPUTS = 1,
+    COMMAND_READ = 2,
 };
 
 typedef struct PACK

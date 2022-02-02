@@ -320,15 +320,14 @@ void command_processor_task(void)
     const command_header_t *header = (const command_header_t *)&buf;
     switch (header->command_byte)
     {
-    case COMMAND_READ:
+    case COMMAND_SET_OUTPUTS:
     {
       const command_set_outputs_t *command = (const command_set_outputs_t *)&buf;
       pump_turnon_for(0, command->pump1, 5000);
       pump_turnon_for(1, command->pump2, 5000);
     }
     break;
-    case COMMAND_SET_OUTPUTS:
-
+    case COMMAND_READ:
       break;
     default:
       break;
