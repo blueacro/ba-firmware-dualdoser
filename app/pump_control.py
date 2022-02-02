@@ -1,5 +1,6 @@
 import usb.core
 import usb.util
+import time
 
 # find our device
 dev = usb.core.find(idVendor=0x726c, idProduct=0x3101)
@@ -39,8 +40,13 @@ assert epin is not None
 
 for x in range(0,100):
 # write the data
-    ep.write(b'test')
-    print("wrote")
+    ep.write(b'\x01\x01\x01')
+    print("wrote both pumps on")
     print(epin.read(64))
+    time.sleep(1)
+    ep.write(b'\x01\x00\x00')
+    print("wrote both pumps off")
+    print(epin.read(64))
+    time.sleep(1)
 
 usb.util.release_interface(dev, intf)
