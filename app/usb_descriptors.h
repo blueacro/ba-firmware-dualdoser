@@ -46,8 +46,8 @@ enum
 
 enum
 {
-  USB_CDC_EP_SEND = 0,
-  USB_CDC_EP_RECV = 1,
+  USB_CDC_EP_SEND = 1,
+  USB_CDC_EP_RECV = 2,
 };
 
 /*- Types -------------------------------------------------------------------*/

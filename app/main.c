@@ -56,7 +56,6 @@ HAL_GPIO_PIN(BUTTON, A, 16);
 
 HAL_GPIO_PIN(PWRIN, A, 2);
 
-
 /*- Variables ---------------------------------------------------------------*/
 static alignas(4) uint8_t app_recv_buffer[USB_BUFFER_SIZE];
 static alignas(4) uint8_t app_send_buffer[USB_BUFFER_SIZE];
@@ -67,6 +66,7 @@ static int app_uart_timeout = 0;
 static bool app_status = false;
 static int app_status_timeout = 0;
 static int app_last_interval = 0;
+static bool app_incoming = false;
 
 /*- Implementations ---------------------------------------------------------*/
 
@@ -153,17 +153,22 @@ static void status_task(void)
   {
     app_status_timeout = 0;
   }
-  if (app_system_time % 100 == 0) {
-    if (app_system_time / 100 != app_last_interval) {
+  if (app_system_time % 100 == 0)
+  {
+    if (app_system_time / 100 != app_last_interval)
+    {
       HAL_GPIO_BLUE_toggle();
       app_last_interval = app_system_time / 100;
     }
   }
 
   int pwr = HAL_GPIO_PWRIN_read();
-  if (!pwr) {
+  if (!pwr)
+  {
     HAL_GPIO_RED_set();
-  } else {
+  }
+  else
+  {
     HAL_GPIO_RED_clr();
   }
 }
@@ -175,22 +180,10 @@ void usb_vendor_send_callback(void)
 }
 
 //-----------------------------------------------------------------------------
-static void send_buffer(void)
-{
-  app_send_buffer_free = false;
-
-  // usb_cdc_send(app_send_buffer, app_send_buffer_ptr);
-
-}
-
-//-----------------------------------------------------------------------------
 void usb_vendor_recv_callback(int size)
 {
+  app_incoming = true;
   app_recv_buffer_size = size;
-  usb_vendor_recv(app_recv_buffer, size);
-  if (app_recv_buffer[0] == 1) {
-    HAL_GPIO_PUMP2_set();
-  }
 }
 
 //-----------------------------------------------------------------------------
@@ -199,9 +192,6 @@ void usb_configuration_callback(int config)
   usb_vendor_recv(app_recv_buffer, sizeof(app_recv_buffer));
   (void)config;
 }
-
-
-
 
 //-----------------------------------------------------------------------------
 static void tx_task(void)
@@ -240,21 +230,28 @@ static void button_handler(void)
   static int button_counts = 0;
 
   // Debounce everything
-  if (last_button_time + 50 > app_system_time) {
+  if (last_button_time + 50 > app_system_time)
+  {
     return;
   }
   last_button_time = app_system_time;
   last_button_state = button_state;
   button_state = !HAL_GPIO_BUTTON_read();
 
-  if (last_button_state == button_state) {
+  if (last_button_state == button_state)
+  {
     button_counts += 1;
-    if (button_state) {
+    if (button_state)
+    {
       HAL_GPIO_PUMP1_set();
-    } else {
+    }
+    else
+    {
       HAL_GPIO_PUMP1_clr();
     }
-  } else {
+  }
+  else
+  {
     button_counts = 0;
   }
 }
@@ -277,6 +274,18 @@ int main(void)
     rx_task();
     status_task();
     button_handler();
+    if (app_incoming)
+    {
+      usb_vendor_recv(app_recv_buffer, app_recv_buffer_size);
+      if (app_recv_buffer[0] == 1)
+      {
+        HAL_GPIO_PUMP2_set();
+      }
+      if (app_send_buffer_free) {
+        usb_vendor_send(app_send_buffer, 1);
+      }
+      app_incoming = false;
+    }
   }
 
   return 0;
