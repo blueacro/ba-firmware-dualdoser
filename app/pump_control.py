@@ -11,11 +11,15 @@ if dev is None:
 
 # set the active configuration. With no arguments, the first
 # configuration will be the active one
+dev.reset()
+
 dev.set_configuration()
 
 # get an endpoint instance
 cfg = dev.get_active_configuration()
 intf = cfg[(0,0)]
+usb.util.claim_interface(dev, intf)
+
 
 ep = usb.util.find_descriptor(
     intf,
