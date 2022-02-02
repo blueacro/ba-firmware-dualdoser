@@ -39,6 +39,12 @@
 #include "tusb.h"
 #include "commands.h"
 
+/*- Bootloader entry -*/
+
+#define DBL_TAP_MAGIC 0xf02669ef
+static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
+
+
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE 64
 

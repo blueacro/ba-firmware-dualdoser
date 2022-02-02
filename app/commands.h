@@ -8,6 +8,7 @@ enum COMMAND
 {
     COMMAND_SET_OUTPUTS = 1,
     COMMAND_READ = 2,
+    COMMAND_BOOTLOADER_ENTRY = 3,
 };
 
 typedef struct PACK

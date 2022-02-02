@@ -231,10 +231,8 @@ static void __attribute__((noinline)) USB_Service(void)
   }
 }
 
-#ifdef USE_DBL_TAP
-  #define DBL_TAP_MAGIC 0xf02669ef
-  static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
-#endif
+#define DBL_TAP_MAGIC 0xf02669ef
+static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
 
 void bootloader(void)
 {
@@ -260,6 +258,10 @@ void bootloader(void)
 #ifndef USE_DBL_TAP
   if (!(PORT->Group[0].IN.reg & (1UL << 16)))
     goto run_bootloader; /* pin grounded, so run bootloader */
+
+  // Check if the DBL_TAP_MAGIC constant is at the right memory address, this isn't a power on, and if so, jump to the bootloader
+  if (double_tap == DBL_TAP_MAGIC)
+    goto run_bootloader;
 
   return; /* we've checked everything and there is no reason to run the bootloader */
 #else
