@@ -6,6 +6,8 @@ Community](https://www.reef2reef.com/forums/reef-pi-discussion.1296/). It
 features two peristaltic dosing pumps which are controllable via a simple USB
 endpoint, and two float switch inputs.
 
+[![C/C++ CI](https://github.com/blueacro/ba-firmware-dualdoser/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/blueacro/ba-firmware-dualdoser/actions/workflows/c-cpp.yml)
+
 # Building and Contributing
 
 In order to build, the following is required:
