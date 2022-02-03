@@ -231,17 +231,16 @@ static void __attribute__((noinline)) USB_Service(void)
   }
 }
 
-#ifdef USE_DBL_TAP
-  #define DBL_TAP_MAGIC 0xf02669ef
-  static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
-#endif
+#define DBL_TAP_MAGIC 0xf02669ef
+static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
 
 void bootloader(void)
 {
 #ifndef USE_DBL_TAP
   /* configure PA16 (bootloader entry pin used by SAM-BA) as input pull-up */
   PORT->Group[0].PINCFG[16].reg = PORT_PINCFG_PULLEN | PORT_PINCFG_INEN;
-  PORT->Group[0].OUTSET.reg = (1UL << 16);
+  PORT->Group[0].DIRSET.reg = (1UL << 17);
+  PORT->Group[0].OUTSET.reg = (1UL << 16) | (1<<17);
 #endif
 
   PAC1->WPCLR.reg = 2; /* clear DSU */
@@ -260,6 +259,12 @@ void bootloader(void)
 #ifndef USE_DBL_TAP
   if (!(PORT->Group[0].IN.reg & (1UL << 16)))
     goto run_bootloader; /* pin grounded, so run bootloader */
+
+  // Check if the DBL_TAP_MAGIC constant is at the right memory address, this isn't a power on, and if so, jump to the bootloader
+  if (double_tap == DBL_TAP_MAGIC) {
+    double_tap = 0;
+    goto run_bootloader;
+  }
 
   return; /* we've checked everything and there is no reason to run the bootloader */
 #else
@@ -286,11 +291,6 @@ run_bootloader:
   /*
   configure oscillator for crystal-free USB operation (USBCRM / USB Clock Recovery Mode)
   */
-
-
-  /* Turn on an LED  on PA17 on entry */
-  PORT->Group[0].DIRSET.reg = (1UL << 17);
-  PORT->Group[0].OUTSET.reg = (1UL << 17);
 
   SYSCTRL->OSC8M.bit.PRESC = 0;
 

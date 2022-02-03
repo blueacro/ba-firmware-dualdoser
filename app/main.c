@@ -39,6 +39,12 @@
 #include "tusb.h"
 #include "commands.h"
 
+/*- Bootloader entry -*/
+
+#define DBL_TAP_MAGIC 0xf02669ef
+static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
+
+
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE 64
 
@@ -347,6 +353,15 @@ void command_processor_task(void)
     }
     break;
     case COMMAND_READ:
+      break;
+    case COMMAND_BOOTLOADER_ENTRY:
+      double_tap = DBL_TAP_MAGIC;
+      // Disable pumps
+      pump_turnon_for(0, 0, 5000);
+      pump_turnon_for(1, 0, 5000);
+      // Schedule the watchdog to jettison us off a cliff
+      WDT->CONFIG.reg = WDT_CONFIG_PER_16K | WDT_CONFIG_WINDOW_16K;
+      WDT->CTRL.reg = WDT_CTRL_ENABLE;
       break;
     default:
       break;
