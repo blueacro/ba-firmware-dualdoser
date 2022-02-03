@@ -43,12 +43,15 @@ SRCS += \
   usb_descriptors.c \
   startup_samd11.c
 
+BCD_TAG = $$(git describe --tags --abbrev=0 | sed -rn  's/v([0-9])\.([0-9][0-9])/0x\1\2/p')
+
 DEFINES += \
   -D__SAMD11C14A__ \
   -DDONT_USE_CMSIS_INIT \
   -DSTARTUP_FROM_RESET \
   -DF_CPU=48000000 \
-  -DCFG_TUSB_MCU=OPT_MCU_SAMD11
+  -DCFG_TUSB_MCU=OPT_MCU_SAMD11 \
+  -DBCD_DEVICE=$(BCD_TAG)
 
 CFLAGS += $(INCLUDES) $(DEFINES)
 
