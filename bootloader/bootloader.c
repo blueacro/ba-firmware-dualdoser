@@ -239,7 +239,8 @@ void bootloader(void)
 #ifndef USE_DBL_TAP
   /* configure PA16 (bootloader entry pin used by SAM-BA) as input pull-up */
   PORT->Group[0].PINCFG[16].reg = PORT_PINCFG_PULLEN | PORT_PINCFG_INEN;
-  PORT->Group[0].OUTSET.reg = (1UL << 16);
+  PORT->Group[0].DIRSET.reg = (1UL << 17);
+  PORT->Group[0].OUTSET.reg = (1UL << 16) | (1<<17);
 #endif
 
   PAC1->WPCLR.reg = 2; /* clear DSU */
@@ -290,11 +291,6 @@ run_bootloader:
   /*
   configure oscillator for crystal-free USB operation (USBCRM / USB Clock Recovery Mode)
   */
-
-
-  /* Turn on an LED  on PA17 on entry */
-  PORT->Group[0].DIRSET.reg = (1UL << 17);
-  PORT->Group[0].OUTSET.reg = (1UL << 17);
 
   SYSCTRL->OSC8M.bit.PRESC = 0;
 
