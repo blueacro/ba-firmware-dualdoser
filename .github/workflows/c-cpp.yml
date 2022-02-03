@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: fiam/arm-none-eabi-gcc@v1
+      with:
+        release: '10.3-2021.10' # The arm-none-eabi-gcc release to use.      
     - uses: actions/checkout@v2
       with:
         submodules: recursive
-    - uses: fiam/arm-none-eabi-gcc@v1
-      with:
-        release: '10.3-2021.10' # The arm-none-eabi-gcc release to use.
     - name: make app
       run: make
       working-directory: app
