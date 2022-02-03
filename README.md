@@ -1,7 +1,7 @@
 # Reef Volt DualDoser Firmware
 
 This is the firmware for the ReefVolt DualDoser, as sold by
-[blueAcro.com](blueacro.com), and part of the [Reef2Reef Reef-Pi
+[blueAcro.com](https://blueacro.com), and part of the [Reef2Reef Reef-Pi
 Community](https://www.reef2reef.com/forums/reef-pi-discussion.1296/). It
 features two peristaltic dosing pumps which are controllable via a simple USB
 endpoint, and two float switch inputs.
