@@ -335,6 +335,15 @@ void command_processor_task(void)
     break;
     case COMMAND_READ:
       break;
+    case COMMAND_BOOTLOADER_ENTRY:
+      double_tap = DBL_TAP_MAGIC;
+      // Disable pumps
+      pump_turnon_for(0, 0, 5000);
+      pump_turnon_for(1, 0, 5000);
+      // Schedule the watchdog to jettison us off a cliff
+      WDT->CONFIG.reg = WDT_CONFIG_PER_16K | WDT_CONFIG_WINDOW_16K;
+      WDT->CTRL.reg = WDT_CTRL_ENABLE;
+      break;
     default:
       break;
     }

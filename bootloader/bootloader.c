@@ -260,8 +260,10 @@ void bootloader(void)
     goto run_bootloader; /* pin grounded, so run bootloader */
 
   // Check if the DBL_TAP_MAGIC constant is at the right memory address, this isn't a power on, and if so, jump to the bootloader
-  if (double_tap == DBL_TAP_MAGIC)
+  if (double_tap == DBL_TAP_MAGIC) {
+    double_tap = 0;
     goto run_bootloader;
+  }
 
   return; /* we've checked everything and there is no reason to run the bootloader */
 #else
