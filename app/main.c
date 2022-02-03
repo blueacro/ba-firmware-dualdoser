@@ -73,7 +73,7 @@ typedef struct
 // Pump status register
 static pump_status_t pumps[2];
 
-uint8_t usb_serial_number[9];
+uint8_t usb_serial_number[12];
 
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
@@ -169,12 +169,6 @@ static void sys_time_init(void)
 //-----------------------------------------------------------------------------
 static void sys_time_task(void)
 {
-}
-
-//-----------------------------------------------------------------------------
-static int get_system_time(void)
-{
-  return app_system_time;
 }
 
 //-----------------------------------------------------------------------------
@@ -309,6 +303,31 @@ void usb_init(void)
   USB->DEVICE.PADCAL.bit.TRIM = NVM_READ_CAL(NVM_USB_TRIM);
 }
 
+void send_response(void)
+{
+  int floats = 0;
+  if (HAL_GPIO_FLOAT1_read())
+  {
+    floats = 1;
+  }
+  if (HAL_GPIO_FLOAT2_read())
+  {
+    floats |= (1 << 1);
+  }
+  response_t response = {
+      .header = {.response_byte = RESPONSE_STATUS},
+      .power_status = !HAL_GPIO_PWRIN_read(),
+      .pump1_status = pumps[0].pump_speed,
+      .pump2_status = pumps[1].pump_speed,
+      .float_status = floats,
+      .analog_float_status = 0};
+  // echo to web serial
+  if (tud_vendor_mounted())
+  {
+    tud_vendor_write((const void *)&response, sizeof(response));
+  }
+}
+
 void command_processor_task(void)
 {
 
@@ -333,31 +352,6 @@ void command_processor_task(void)
       break;
     }
     send_response();
-  }
-}
-
-void send_response()
-{
-  int floats = 0;
-  if (HAL_GPIO_FLOAT1_read())
-  {
-    floats = 1;
-  }
-  if (HAL_GPIO_FLOAT2_read())
-  {
-    floats |= (1 << 1);
-  }
-  response_t response = {
-      .header = {.response_byte = RESPONSE_STATUS},
-      .power_status = !HAL_GPIO_PWRIN_read(),
-      .pump1_status = pumps[0].pump_speed,
-      .pump2_status = pumps[1].pump_speed,
-      .float_status = floats,
-      .analog_float_status = 0};
-  // echo to web serial
-  if (tud_vendor_mounted())
-  {
-    tud_vendor_write((const void *)&response, sizeof(response));
   }
 }
 

@@ -1,6 +1,7 @@
 ##############################################################################
 BUILD = build
 BIN = dualdoser
+BIN_NOBL = dualdoser_nobl
 
 ##############################################################################
 .PHONY: all directory clean size
@@ -19,6 +20,11 @@ CFLAGS += -MD -MP -MT $(BUILD)/$(*F).o -MF $(BUILD)/$(@F).d
 LDFLAGS += -mcpu=cortex-m0plus -mthumb
 LDFLAGS += -Wl,--gc-sections
 LDFLAGS += -Wl,--script=linker/samd11d14.ld
+
+LDFLAGS_NOBL += -mcpu=cortex-m0plus -mthumb
+LDFLAGS_NOBL += -Wl,--gc-sections
+LDFLAGS_NOBL += -Wl,--script=linker/samd11d14-nobl.ld
+
 
 INCLUDES += \
   -Iinclude \
@@ -48,7 +54,11 @@ CFLAGS += $(INCLUDES) $(DEFINES)
 
 OBJS = $(addprefix $(BUILD)/, $(subst .c,.o, $(SRCS)))
 
-all: directory $(BUILD)/$(BIN).elf $(BUILD)/$(BIN).hex $(BUILD)/$(BIN).bin size
+all: directory $(BUILD)/$(BIN_NOBL).elf $(BUILD)/$(BIN).elf $(BUILD)/$(BIN).hex $(BUILD)/$(BIN).bin size
+
+$(BUILD)/$(BIN_NOBL).elf: $(OBJS)
+	@echo LD $@
+	@$(CC) $(LDFLAGS_NOBL) $(OBJS) $(LIBS) -o $@
 
 $(BUILD)/$(BIN).elf: $(OBJS)
 	@echo LD $@
@@ -64,7 +74,7 @@ $(BUILD)/$(BIN).bin: $(BUILD)/$(BIN).elf
 
 %.o:
 	@echo CC $@
-	$(CC) $(CFLAGS) $(subst build/,,$(subst .o,.c,$@)) -c -o $@
+	@$(CC) $(CFLAGS) $(subst build/,,$(subst .o,.c,$@)) -c -o $@
 
 directory:
 	@mkdir -p $(BUILD)
