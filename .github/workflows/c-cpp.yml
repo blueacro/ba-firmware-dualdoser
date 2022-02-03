@@ -18,11 +18,19 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: recursive
-    - name: make app
+    - name: fetch tags
+      run: |
+        git fetch --unshallow --tags
+    - name: make all
       run: make
-      working-directory: app
-    - name: make bootloader
-      run: make
-      working-directory: bootloader/make
-
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+            build/dualdoser.elf
+            build/dualdoser.dfu
+            build/dualdoser.hex
+            build/D11boot.hex
+            build/D11boot.elf
 

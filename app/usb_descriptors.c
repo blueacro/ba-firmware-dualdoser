@@ -54,7 +54,7 @@ tusb_desc_device_t const desc_device =
 
         .idVendor = 0x726c,
         .idProduct = 0x3101,
-        .bcdDevice = 0x0100,
+        .bcdDevice = BCD_DEVICE,
 
         .iManufacturer = 0x01,
         .iProduct = 0x02,

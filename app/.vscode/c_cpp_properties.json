@@ -18,7 +18,8 @@
                 "__SAMD11D14AM__",
                 "DONT_USE_CMSIS_INIT",
                 "F_CPU=48000000",
-                "CFG_TUSB_MCU=OPT_MCU_SAMD11"
+                "CFG_TUSB_MCU=OPT_MCU_SAMD11",
+                "BCD_DEVICE=0xFFFF"
             ],
             "compilerPath": "/usr/bin/arm-none-eabi-gcc",
             "cStandard": "gnu99",

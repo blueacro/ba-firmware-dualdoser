@@ -3,7 +3,7 @@
     "configurations": [
         {
             "cwd": "${workspaceRoot}",
-            "executable": "build/dualdoser-nobl.elf",
+            "executable": "build/dualdoser_nobl.elf",
             "name": "Debug Microcontroller",
             "request": "launch",
             "type": "cortex-debug",
