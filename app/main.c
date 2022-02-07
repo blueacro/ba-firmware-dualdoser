@@ -44,7 +44,6 @@
 #define DBL_TAP_MAGIC 0xf02669ef
 static volatile uint32_t __attribute__((section(".vectors_ram"))) double_tap;
 
-
 /*- Definitions -------------------------------------------------------------*/
 #define USB_BUFFER_SIZE 64
 
@@ -67,6 +66,13 @@ HAL_GPIO_PIN(USB_DP, A, 25);
 
 // 1ms system core clock since start
 static uint64_t app_system_time = 0;
+static bool ignore_wdt_reset = false;
+// Counter to flicker the blue LED off on a command received
+static uint64_t led_flicker_usb = 0;
+// Flag if the USB is mounted on the host
+static bool usb_mounted = false;
+// Flag that green LED control is set for button control
+static bool led_green_button_control = false;
 
 typedef struct
 {
@@ -92,13 +98,13 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  HAL_GPIO_BLUE_set();
+  usb_mounted = true;
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  HAL_GPIO_BLUE_clr();
+  usb_mounted = false;
 }
 
 // Invoked when usb bus is suspended
@@ -107,13 +113,18 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void)remote_wakeup_en;
-  HAL_GPIO_BLUE_clr();
+  usb_mounted = false;
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  HAL_GPIO_BLUE_set();
+}
+
+static void wdt_task(void)
+{
+  if (!ignore_wdt_reset)
+    WDT->CLEAR.reg = WDT_CLEAR_CLEAR_KEY_Val;
 }
 
 static void sys_init(void)
@@ -160,6 +171,11 @@ static void sys_init(void)
     usb_serial_number[i] = "0123456789ABCDEF"[(sn >> (i * 4)) & 0xf];
 
   usb_serial_number[9] = 0;
+
+  WDT->CONFIG.reg = WDT_CONFIG_PER_16K | WDT_CONFIG_WINDOW_16K;
+  WDT->CTRL.reg = WDT_CTRL_ENABLE;
+
+  SYSCTRL->BOD33.reg = SYSCTRL_BOD33_ACTION_RESET | SYSCTRL_BOD33_ENABLE | SYSCTRL_BOD33_LEVEL(39) | SYSCTRL_BOD33_HYST;
 }
 
 //-----------------------------------------------------------------------------
@@ -188,6 +204,26 @@ static void status_task(void)
   else
   {
     HAL_GPIO_RED_clr();
+  }
+  if (usb_mounted)
+  {
+    if (!led_green_button_control)
+    {
+      HAL_GPIO_GREEN_clr();
+    }
+    if (led_flicker_usb < app_system_time)
+    {
+      HAL_GPIO_BLUE_set();
+    }
+    else
+    {
+      HAL_GPIO_BLUE_clr();
+    }
+  }
+  else
+  {
+    if (!led_green_button_control)
+      HAL_GPIO_GREEN_set();
   }
 }
 
@@ -269,8 +305,13 @@ static void button_task(void)
   if (last_button_state == button_state)
   {
     button_counts += 1;
+    if (button_state)
+      led_green_button_control = true;
+    else
+      led_green_button_control = false;
     if (button_state && button_counts > 10)
       HAL_GPIO_GREEN_set();
+
     if (button_state && button_counts > 20)
       HAL_GPIO_GREEN_clr();
   }
@@ -285,6 +326,7 @@ static void button_task(void)
     {
       pump_turnon_for(1, 1, 5000);
     }
+    led_green_button_control = false;
     HAL_GPIO_GREEN_clr();
     button_counts = 0;
   }
@@ -342,6 +384,7 @@ void command_processor_task(void)
     uint8_t buf[64];
     uint32_t count = tud_vendor_read(buf, sizeof(buf));
 
+    led_flicker_usb = app_system_time + 20;
     const command_header_t *header = (const command_header_t *)&buf;
     switch (header->command_byte)
     {
@@ -360,8 +403,8 @@ void command_processor_task(void)
       pump_turnon_for(0, 0, 5000);
       pump_turnon_for(1, 0, 5000);
       // Schedule the watchdog to jettison us off a cliff
-      WDT->CONFIG.reg = WDT_CONFIG_PER_16K | WDT_CONFIG_WINDOW_16K;
-      WDT->CTRL.reg = WDT_CTRL_ENABLE;
+      wdt_task();              // First do a reset
+      ignore_wdt_reset = true; // Then ignore the resets
       break;
     default:
       break;
@@ -387,6 +430,7 @@ int main(void)
     tud_task(); // device task
     command_processor_task();
     pump_task();
+    wdt_task();
   }
 
   return 0;
@@ -403,4 +447,8 @@ void USB_Handler(void)
 void SysTick_Handler(void)
 {
   app_system_time++;
+}
+
+void SYSCTRL_Handler(void)
+{
 }

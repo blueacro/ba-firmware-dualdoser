@@ -42,8 +42,11 @@ epin = usb.util.find_descriptor(
 
 assert epin is not None
 
-for x in range(0,100):
+import datetime
+
+while True:
 # write the data
+    print(datetime.datetime.now())
     ep.write(b'\x01\x01\x01')
     print("wrote both pumps on")
     print(epin.read(64))
