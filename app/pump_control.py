@@ -1,6 +1,7 @@
 import usb.core
 import usb.util
 import time
+import struct
 
 # find our device
 dev = usb.core.find(idVendor=0x726c, idProduct=0x3101)
@@ -47,10 +48,17 @@ import datetime
 while True:
 # write the data
     print(datetime.datetime.now())
-    ep.write(b'\x01\x01\x01')
-    print("wrote both pumps on")
-    print(epin.read(64))
-    time.sleep(1)
+    for p in range (0, 2):
+
+        for x in range(1, 100, 5):
+            print(p, x)
+            if p == 1:
+                cmd = struct.pack("<bbb", 1, 0, x)
+            else:
+                cmd = struct.pack("<bbb", 1, x, 0)
+            ep.write(cmd)
+            print(epin.read(64))
+            time.sleep(1)
     ep.write(b'\x01\x00\x00')
     print("wrote both pumps off")
     print(epin.read(64))
