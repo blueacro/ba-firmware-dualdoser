@@ -249,19 +249,18 @@ static void gpio_init(void)
 // Helper function to set the GPIO decoded
 static void _pump_pin_set(uint8_t pump, uint8_t set)
 {
+  set = set << 1;
+  if (set > 200)
+    set = 200;
+  if (set && set < 40)
+    set = 40;
   switch (pump)
   {
   case 0:
-    if (set)
-      HAL_GPIO_PUMP1_set();
-    else
-      HAL_GPIO_PUMP1_clr();
+    TCC0->CC[2].bit.CC = set;
     break;
   case 1:
-    if (set)
-      HAL_GPIO_PUMP2_set();
-    else
-      HAL_GPIO_PUMP2_clr();
+    TCC0->CC[3].bit.CC = set;
   default:
     break;
   }
@@ -320,11 +319,11 @@ static void button_task(void)
     // Button state change, do a thing
     if (last_button_state && button_counts > 20)
     {
-      pump_turnon_for(0, 1, 5000);
+      pump_turnon_for(1, 100, 5000);
     }
     else if (last_button_state && button_counts > 10)
     {
-      pump_turnon_for(1, 1, 5000);
+      pump_turnon_for(0, 100, 5000);
     }
     led_green_button_control = false;
     HAL_GPIO_GREEN_clr();
@@ -412,6 +411,31 @@ void command_processor_task(void)
     send_response();
   }
 }
+void pwm_init(void)
+{
+  HAL_GPIO_PUMP1_pmuxen(PORT_PMUX_PMUXE_F_Val);
+  HAL_GPIO_PUMP2_pmuxen(PORT_PMUX_PMUXE_F_Val);
+
+  GCLK->GENCTRL.reg = GCLK_GENCTRL_ID(2) | GCLK_GENCTRL_SRC(GCLK_SOURCE_DFLL48M) |
+                      GCLK_GENCTRL_RUNSTDBY | GCLK_GENCTRL_GENEN;
+  while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY)
+    ;
+  GCLK->CLKCTRL.reg = GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_ID(TCC0_GCLK_ID) | GCLK_CLKCTRL_GEN(2);
+  while (GCLK->STATUS.reg & GCLK_STATUS_SYNCBUSY)
+    ;
+  PM->APBCMASK.bit.TCC0_ = 1;
+  TCC0->CTRLA.bit.SWRST = 1;
+  while (TCC0->SYNCBUSY.bit.SWRST)
+    ;
+
+  TCC0->WAVE.bit.WAVEGEN = 0x2; // Normal PWM
+  TCC0->PER.bit.PER = 200;
+  TCC0->CTRLA.bit.PRESCALER = 4;
+
+  TCC0->CC[2].bit.CC = 0x0;
+  TCC0->CC[3].bit.CC = 0x0;
+  TCC0->CTRLA.bit.ENABLE = 1;
+}
 
 //-----------------------------------------------------------------------------
 int main(void)
@@ -421,6 +445,7 @@ int main(void)
   gpio_init();
   usb_init();
   tusb_init();
+  pwm_init();
 
   while (1)
   {
